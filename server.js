@@ -1,23 +1,23 @@
 const express = require("express");
+const path = require("path");
 const fs = require("fs");
 
 const app = express();
 app.use(express.json());
 
-const DATA_FILE = "./applications.json";
+// -------------------- DATABASE --------------------
+const DB = "./applications.json";
 
-// Load apps
-function loadApps() {
-  if (!fs.existsSync(DATA_FILE)) return [];
-  return JSON.parse(fs.readFileSync(DATA_FILE));
+function getApps() {
+  if (!fs.existsSync(DB)) return [];
+  return JSON.parse(fs.readFileSync(DB));
 }
 
-// Save apps
 function saveApps(data) {
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+  fs.writeFileSync(DB, JSON.stringify(data, null, 2));
 }
 
-// Apply endpoint
+// -------------------- APPLY API --------------------
 app.post("/apply", (req, res) => {
   const { username, discordId, age, reason } = req.body;
 
@@ -25,7 +25,7 @@ app.post("/apply", (req, res) => {
     return res.status(400).json({ error: "Missing fields" });
   }
 
-  const apps = loadApps();
+  const apps = getApps();
 
   const newApp = {
     id: Date.now().toString(),
@@ -40,19 +40,19 @@ app.post("/apply", (req, res) => {
   apps.push(newApp);
   saveApps(apps);
 
-  res.json({ success: true, app: newApp });
+  res.json({ success: true });
 });
 
-// Get applications (bot uses this)
+// -------------------- GET APPS (BOT USE) --------------------
 app.get("/applications", (req, res) => {
-  res.json(loadApps());
+  res.json(getApps());
 });
 
-// Accept / deny
+// -------------------- ACCEPT / DENY --------------------
 app.post("/decision", (req, res) => {
   const { id, status } = req.body;
 
-  const apps = loadApps();
+  const apps = getApps();
   const index = apps.findIndex(a => a.id === id);
 
   if (index === -1) return res.status(404).json({ error: "Not found" });
@@ -63,4 +63,14 @@ app.post("/decision", (req, res) => {
   res.json({ success: true });
 });
 
-app.listen(3000, () => console.log("Server running on port 3000"));
+// -------------------- SERVE FRONTEND (THIS FIXES PREVIEW) --------------------
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "index.html"));
+});
+
+// -------------------- REPLIT FIX (IMPORTANT) --------------------
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, () => {
+  console.log("Server running on port", PORT);
+});
