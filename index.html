@@ -1,8 +1,7 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8">
-<title>Apply Portal</title>
+<title>Apply Dashboard</title>
 
 <style>
 body {
@@ -17,40 +16,16 @@ body {
   padding: 25px;
   font-size: 26px;
   color: #38bdf8;
-  text-shadow: 0 0 15px #38bdf8;
 }
 
 .container {
+  width: 90%;
   max-width: 600px;
   margin: auto;
   background: rgba(255,255,255,0.05);
   padding: 20px;
   border-radius: 15px;
-  backdrop-filter: blur(10px);
 }
-
-.steps {
-  display: flex;
-  margin-bottom: 20px;
-}
-
-.step {
-  flex: 1;
-  text-align: center;
-  padding: 10px;
-  margin: 5px;
-  background: rgba(56,189,248,0.1);
-  border-radius: 10px;
-  cursor: pointer;
-}
-
-.step.active {
-  background: #38bdf8;
-  color: black;
-}
-
-.section { display: none; }
-.section.active { display: block; }
 
 input, textarea {
   width: 100%;
@@ -77,49 +52,23 @@ button {
 
 <body>
 
-<div class="header">🌐 STAFF APPLICATION PORTAL</div>
+<div class="header">🌐 APPLY DASHBOARD</div>
 
 <div class="container">
 
-<div class="steps">
-  <div class="step active" onclick="show(1)">1 Info</div>
-  <div class="step" onclick="show(2)">2 Questions</div>
-  <div class="step" onclick="show(3)">3 Submit</div>
-</div>
+<h3>Application Form</h3>
 
-<!-- STEP 1 -->
-<div class="section active" id="s1">
-  <input id="username" placeholder="Discord Username">
-  <input id="discordId" placeholder="Discord ID (e.g. 1234567890)">
-  <input id="age" placeholder="Age">
-</div>
+<input id="username" placeholder="Discord Username">
+<input id="discordId" placeholder="Discord ID">
+<input id="age" placeholder="Age">
+<textarea id="reason" placeholder="Why do you want to join?"></textarea>
 
-<!-- STEP 2 -->
-<div class="section" id="s2">
-  <textarea id="reason" placeholder="Why do you want to join?"></textarea>
-</div>
-
-<!-- STEP 3 -->
-<div class="section" id="s3">
-  <button onclick="submit()">🚀 Submit Application</button>
-</div>
+<button onclick="submitApp()">Submit</button>
 
 </div>
 
 <script>
-let step = 1;
-
-function show(n) {
-  step = n;
-
-  document.querySelectorAll(".section").forEach(s => s.classList.remove("active"));
-  document.querySelectorAll(".step").forEach(s => s.classList.remove("active"));
-
-  document.getElementById("s" + n).classList.add("active");
-  document.querySelectorAll(".step")[n - 1].classList.add("active");
-}
-
-async function submit() {
+async function submitApp() {
   const username = document.getElementById("username").value;
   const discordId = document.getElementById("discordId").value;
   const age = document.getElementById("age").value;
@@ -133,8 +82,11 @@ async function submit() {
 
   const data = await res.json();
 
-  if (data.success) alert("Application sent!");
-  else alert("Error");
+  if (data.success) {
+    alert("Application sent!");
+  } else {
+    alert("Error submitting application");
+  }
 }
 </script>
 
