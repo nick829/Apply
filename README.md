@@ -1,118 +1,21 @@
-# 🌐 Apply Bot Dashboard System
+# Ultra Enterprise Discord Security Bot
 
-A futuristic Discord application system with a web dashboard, backend API, and Discord bot integration for managing staff applications.
+A powerful all-in-one Discord security bot with moderation, anti-nuke protection, raid detection, and ML-style behavior clustering.
 
----
+This bot includes anti-nuke systems that automatically restore deleted channels and roles, raid detection that monitors mass joins and suspicious behavior, a DEFCON-style lockdown system, and a smart risk scoring engine that classifies users as normal, suspicious, or raid candidates.
 
-## ✨ Features
+It also includes full moderation tools such as kick, ban, warn, warnings tracking, and message clearing, along with server control commands like lock, unlock, hide, show, and nuke. A full staff system is included with owner, staff, trusted roles, plus whitelist and blacklist support for advanced permission control.
 
-- 3-step futuristic application UI
-- Discord Username + Discord ID system
-- Instant application submission
-- Discord bot posts applications in staff channel
-- Accept / Deny buttons
-- Live status tracking (pending / accepted / denied)
-- Simple JSON database (no setup needed)
-- Express backend API
-- Clean neon-style UI
+The bot features a logging system that records staff actions, moderation events, raid detection alerts, and anti-nuke recovery actions to a designated log channel.
 
----
+A snapshot system allows you to save and restore server states using /snapshot and /restore, capturing channels and roles for emergency recovery.
 
-## 🧱 Project Files
+The raid detection system uses a behavior scoring engine that evaluates each user based on account age, username patterns, join speed, bot status, and past behavior. Users are classified into normal, suspicious, or raid candidate categories. Suspicious users may be kicked while raid candidates are automatically banned.
 
-- server.js → Backend API (Express)
-- index.html → Application website
-- bot.js → Discord bot (discord.js v14)
-- applications.json → Database storage
-- package.json → Dependencies
+To install, run npm install discord.js, then configure your bot token, client ID, guild ID, and owner ID inside index.js. Start the bot using node index.js.
 
----
+This bot is designed for high-security Discord environments and is capable of automatically reacting to raids, nukes, and abnormal server activity in real time.
 
-## ⚙️ Setup
+Commands include kick, ban, warn, warnings, clear, antiraid, antispam, antilink, addstaff, removestaff, whitelist, removewhitelist, blacklist, lock, unlock, hide, show, snapshot, restore, and security.
 
-### Install dependencies
-npm install
-
----
-
-### Start backend
-node server.js
-
----
-
-### Start bot (new terminal)
-node bot.js
-
----
-
-## 🔐 Bot Configuration
-
-Edit bot.js:
-
-const TOKEN = "YOUR_BOT_TOKEN";
-const CHANNEL_ID = "YOUR_CHANNEL_ID";
-const API = "http://localhost:3000";
-
----
-
-## 📡 How It Works
-
-1. User opens apply website
-2. Fills form:
-   - Discord Username
-   - Discord ID
-   - Age
-   - Reason
-3. Data sent to backend (/apply)
-4. Stored in applications.json
-5. Bot fetches applications
-6. Bot posts embed in Discord
-7. Staff click:
-   - Accept → approve application
-   - Deny → reject application
-
----
-
-## 📁 API Routes
-
-POST /apply → submit application  
-GET /applications → get all applications  
-POST /decision → accept/deny application  
-
----
-
-## 🛡️ Security
-
-- Never expose bot token
-- Keep API private in production
-- Use environment variables for hosting
-
----
-
-## 🚀 Deployment
-
-Replit:
-- Run server.js
-- Run bot.js in another shell
-
-VPS:
-npm install pm2 -g
-pm2 start server.js
-pm2 start bot.js
-
----
-
-## 💡 Future Upgrades
-
-- Discord OAuth login
-- Admin dashboard panel
-- MongoDB database support
-- Auto role assignment
-- Ticket system integration
-- Live updates (no refresh needed)
-
----
-
-## ⚡ Status
-
-Active working system
+The system is designed as a single-file architecture and can be extended with database persistence or a web dashboard for production use.
