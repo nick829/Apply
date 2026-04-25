@@ -1,36 +1,47 @@
-const { Client, Intents } = require("discord.js");
+const { Client, Intents, Collection } = require("discord.js");
 const mysql = require("mysql2");
 const config = require("./config");
+const loader = require("./handler/loader");
 
 const client = new Client({
     intents: [
-        "GUILDS",
-        "GUILD_MESSAGES",
-        "GUILD_MEMBERS",
-        "MESSAGE_CONTENT"
+        Intents.FLAGS.GUILDS,
+        Intents.FLAGS.GUILD_MESSAGES,
+        Intents.FLAGS.GUILD_MEMBERS,
+        Intents.FLAGS.MESSAGE_CONTENT
     ]
 });
 
+// ======================
+// GLOBALS
+// ======================
+client.commands = new Collection();
+client.aliases = new Collection();
+client.config = config;
+
+// ======================
 // DATABASE
-const con = mysql.createConnection({
+// ======================
+client.con = mysql.createConnection({
     host: process.env.DB_HOST,
     user: process.env.DB_USER,
     password: process.env.DB_PASS,
     database: process.env.DB_NAME
 });
 
-con.connect(err => {
+client.con.connect(err => {
     if (err) console.log("DB ERROR:", err);
     else console.log("Database connected.");
 });
 
-// GLOBALS
-client.config = config;
-client.con = con;
+// ======================
+// LOAD COMMANDS
+// ======================
+loader(client);
 
-// COMMAND HANDLER
-client.on("messageCreate", message => {
-    require("./messageCreate")(client, message);
-});
+// ======================
+// MESSAGE HANDLER
+// ======================
+client.on("messageCreate", require("./events/messageCreate"));
 
 client.login(config.token);
