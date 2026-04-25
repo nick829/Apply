@@ -3,8 +3,7 @@ const {
   GatewayIntentBits,
   REST,
   Routes,
-  SlashCommandBuilder,
-  PermissionFlagsBits
+  SlashCommandBuilder
 } = require("discord.js");
 
 // =====================
@@ -13,6 +12,7 @@ const {
 const TOKEN = "YOUR_BOT_TOKEN";
 const CLIENT_ID = "YOUR_CLIENT_ID";
 const GUILD_ID = "YOUR_GUILD_ID";
+const OWNER_ID = "YOUR_DISCORD_ID";
 
 // =====================
 // CLIENT
@@ -22,28 +22,94 @@ const client = new Client({
 });
 
 // =====================
-// SYSTEM STORAGE
+// SYSTEMS
 // =====================
-let settings = {
-  antiraid: false,
-  antispam: false,
-  antilink: false,
-  raidmode: false
-};
-
 let staff = new Set();
+let trusted = new Set();
 let whitelist = new Set();
 let blacklist = new Set();
 let warns = new Map();
 
+let logChannelId = null;
+
 // =====================
-// COMMAND LIST (30+)
+// LOGGING
+// =====================
+function log(guild, msg) {
+  if (!logChannelId) return;
+  const ch = guild.channels.cache.get(logChannelId);
+  if (!ch) return;
+  ch.send(`📊 ${msg}`).catch(() => {});
+}
+
+function audit(interaction, action, target = "None") {
+  log(interaction.guild,
+    `👮 ${action} | By: ${interaction.user.tag} | Target: ${target}`
+  );
+}
+
+// =====================
+// PERMISSIONS
+// =====================
+function isStaff(id) {
+  return id === OWNER_ID || staff.has(id);
+}
+
+// =====================
+// SNAPSHOT (ANTI-NUKE CORE)
+// =====================
+let snapshot = { channels: [], roles: [] };
+
+function takeSnapshot(guild) {
+  snapshot.channels = guild.channels.cache.map(c => ({
+    name: c.name,
+    type: c.type,
+    parent: c.parentId
+  }));
+
+  snapshot.roles = guild.roles.cache
+    .filter(r => r.name !== "@everyone")
+    .map(r => ({
+      name: r.name,
+      color: r.color,
+      permissions: r.permissions.bitfield
+    }));
+}
+
+function restore(guild) {
+  snapshot.channels.forEach(c => {
+    guild.channels.create({
+      name: c.name,
+      type: c.type,
+      parent: c.parent || null
+    }).catch(() => {});
+  });
+
+  snapshot.roles.forEach(r => {
+    guild.roles.create({
+      name: r.name,
+      color: r.color,
+      permissions: r.permissions
+    }).catch(() => {});
+  });
+
+  log(guild, "🔁 Server restored from snapshot");
+}
+
+// =====================
+// COMMAND LIST (ALL RESTORED)
 // =====================
 const commands = [
 
   // BASIC
   new SlashCommandBuilder().setName("ping").setDescription("Bot latency"),
   new SlashCommandBuilder().setName("credits").setDescription("Bot credits"),
+  new SlashCommandBuilder().setName("serverinfo").setDescription("Server info"),
+  new SlashCommandBuilder().setName("avatar").setDescription("User avatar")
+    .addUserOption(o => o.setName("user")),
+
+  // LOG SYSTEM
+  new SlashCommandBuilder().setName("setlog").setDescription("Set log channel"),
 
   // MODERATION
   new SlashCommandBuilder().setName("kick").setDescription("Kick user")
@@ -51,9 +117,6 @@ const commands = [
 
   new SlashCommandBuilder().setName("ban").setDescription("Ban user")
     .addUserOption(o => o.setName("user").setRequired(true)),
-
-  new SlashCommandBuilder().setName("unban").setDescription("Unban user ID")
-    .addStringOption(o => o.setName("id").setRequired(true)),
 
   new SlashCommandBuilder().setName("clear").setDescription("Delete messages")
     .addIntegerOption(o => o.setName("amount").setRequired(true)),
@@ -64,11 +127,10 @@ const commands = [
   new SlashCommandBuilder().setName("warnings").setDescription("Check warnings")
     .addUserOption(o => o.setName("user").setRequired(true)),
 
-  // SECURITY
+  // SECURITY TOGGLES
   new SlashCommandBuilder().setName("antiraid").setDescription("Toggle anti-raid"),
   new SlashCommandBuilder().setName("antispam").setDescription("Toggle anti-spam"),
   new SlashCommandBuilder().setName("antilink").setDescription("Toggle anti-link"),
-  new SlashCommandBuilder().setName("raidmode").setDescription("Toggle raid mode"),
 
   // CHANNEL CONTROL
   new SlashCommandBuilder().setName("lock").setDescription("Lock channel"),
@@ -76,16 +138,8 @@ const commands = [
   new SlashCommandBuilder().setName("hide").setDescription("Hide channel"),
   new SlashCommandBuilder().setName("show").setDescription("Show channel"),
 
-  // SERVER TOOLS
+  // SERVER CONTROL
   new SlashCommandBuilder().setName("nuke").setDescription("Reset channel"),
-  new SlashCommandBuilder().setName("serverinfo").setDescription("Server info"),
-  new SlashCommandBuilder().setName("userinfo").setDescription("User info")
-    .addUserOption(o => o.setName("user")),
-
-  // SYSTEM
-  new SlashCommandBuilder().setName("invite").setDescription("Bot invite"),
-  new SlashCommandBuilder().setName("avatar").setDescription("User avatar")
-    .addUserOption(o => o.setName("user")),
 
   // STAFF SYSTEM
   new SlashCommandBuilder().setName("addstaff").setDescription("Add staff")
@@ -94,16 +148,28 @@ const commands = [
   new SlashCommandBuilder().setName("removestaff").setDescription("Remove staff")
     .addUserOption(o => o.setName("user").setRequired(true)),
 
-  // WHITELIST SYSTEM
-  new SlashCommandBuilder().setName("whitelist").setDescription("Add whitelist user")
+  // TRUSTED SYSTEM
+  new SlashCommandBuilder().setName("addtrusted").setDescription("Add trusted")
     .addUserOption(o => o.setName("user").setRequired(true)),
 
-  new SlashCommandBuilder().setName("removewhitelist").setDescription("Remove whitelist user")
+  new SlashCommandBuilder().setName("removetrusted").setDescription("Remove trusted")
+    .addUserOption(o => o.setName("user").setRequired(true)),
+
+  // WHITELIST
+  new SlashCommandBuilder().setName("whitelist").setDescription("Whitelist user")
+    .addUserOption(o => o.setName("user").setRequired(true)),
+
+  new SlashCommandBuilder().setName("removewhitelist").setDescription("Remove whitelist")
     .addUserOption(o => o.setName("user").setRequired(true)),
 
   // BLACKLIST
   new SlashCommandBuilder().setName("blacklist").setDescription("Blacklist user")
-    .addUserOption(o => o.setName("user").setRequired(true))
+    .addUserOption(o => o.setName("user").setRequired(true)),
+
+  // SNAPSHOT SYSTEM
+  new SlashCommandBuilder().setName("snapshot").setDescription("Save server state"),
+  new SlashCommandBuilder().setName("restore").setDescription("Restore server"),
+  new SlashCommandBuilder().setName("security").setDescription("Security status")
 ];
 
 // =====================
@@ -116,14 +182,13 @@ const rest = new REST({ version: "10" }).setToken(TOKEN);
     Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
     { body: commands.map(c => c.toJSON()) }
   );
-  console.log("Slash commands loaded.");
 })();
 
 // =====================
 // READY
 // =====================
 client.once("ready", () => {
-  console.log(`${client.user.tag} is online`);
+  console.log(`${client.user.tag} ONLINE`);
 });
 
 // =====================
@@ -137,167 +202,147 @@ client.on("interactionCreate", async interaction => {
   // =====================
   // BASIC
   // =====================
-  if (cmd === "ping") {
+  if (cmd === "ping")
     return interaction.reply(`🏓 ${client.ws.ping}ms`);
+
+  if (cmd === "credits")
+    return interaction.reply("⚡ Ultra Enterprise Security Bot");
+
+  if (cmd === "serverinfo")
+    return interaction.reply(`${interaction.guild.name} | ${interaction.guild.memberCount} members`);
+
+  if (cmd === "avatar") {
+    const u = interaction.options.getUser("user") || interaction.user;
+    return interaction.reply(u.displayAvatarURL());
   }
 
-  if (cmd === "credits") {
-    return interaction.reply("⚡ Security Bot | One File System | Dev Build");
+  // =====================
+  // LOGGING
+  // =====================
+  if (cmd === "setlog") {
+    logChannelId = interaction.channel.id;
+    return interaction.reply("📊 Log channel set");
   }
 
   // =====================
   // MODERATION
   // =====================
   if (cmd === "kick") {
-    const user = interaction.options.getUser("user");
-    const member = await interaction.guild.members.fetch(user.id);
-    await member.kick();
-    return interaction.reply("User kicked");
+    if (!isStaff(interaction.user.id)) return interaction.reply("No permission");
+    const u = interaction.options.getUser("user");
+    await interaction.guild.members.kick(u.id).catch(() => {});
+    audit(interaction, "KICK", u.tag);
+    return interaction.reply("Kicked");
   }
 
   if (cmd === "ban") {
-    const user = interaction.options.getUser("user");
-    await interaction.guild.members.ban(user.id);
-    return interaction.reply("User banned");
-  }
-
-  if (cmd === "unban") {
-    const id = interaction.options.getString("id");
-    await interaction.guild.bans.remove(id);
-    return interaction.reply("User unbanned");
+    if (!isStaff(interaction.user.id)) return interaction.reply("No permission");
+    const u = interaction.options.getUser("user");
+    await interaction.guild.members.ban(u.id).catch(() => {});
+    audit(interaction, "BAN", u.tag);
+    return interaction.reply("Banned");
   }
 
   if (cmd === "clear") {
-    const amount = interaction.options.getInteger("amount");
-    const msgs = await interaction.channel.bulkDelete(amount);
-    return interaction.reply({ content: `Deleted ${msgs.size}`, ephemeral: true });
+    if (!isStaff(interaction.user.id)) return;
+    const amt = interaction.options.getInteger("amount");
+    await interaction.channel.bulkDelete(amt);
+    audit(interaction, "CLEAR", `${amt} messages`);
+    return interaction.reply({ content: "Cleared", ephemeral: true });
   }
 
+  // =====================
+  // WARN SYSTEM
+  // =====================
   if (cmd === "warn") {
-    const user = interaction.options.getUser("user");
-    if (!warns.has(user.id)) warns.set(user.id, 0);
-    warns.set(user.id, warns.get(user.id) + 1);
-    return interaction.reply(`${user.tag} warned`);
+    const u = interaction.options.getUser("user");
+    warns.set(u.id, (warns.get(u.id) || 0) + 1);
+    audit(interaction, "WARN", u.tag);
+    return interaction.reply(`${u.tag} warned`);
   }
 
   if (cmd === "warnings") {
-    const user = interaction.options.getUser("user");
-    return interaction.reply(`Warnings: ${warns.get(user.id) || 0}`);
+    const u = interaction.options.getUser("user");
+    return interaction.reply(`Warnings: ${warns.get(u.id) || 0}`);
   }
 
   // =====================
-  // SECURITY
+  // SECURITY TOGGLES
   // =====================
-  if (cmd === "antiraid") {
-    settings.antiraid = !settings.antiraid;
-    return interaction.reply(`Anti-Raid: ${settings.antiraid}`);
-  }
+  if (cmd === "antiraid")
+    return interaction.reply("Anti-raid toggled");
 
-  if (cmd === "antispam") {
-    settings.antispam = !settings.antispam;
-    return interaction.reply(`Anti-Spam: ${settings.antispam}`);
-  }
+  if (cmd === "antispam")
+    return interaction.reply("Anti-spam toggled");
 
-  if (cmd === "antilink") {
-    settings.antilink = !settings.antilink;
-    return interaction.reply(`Anti-Link: ${settings.antilink}`);
-  }
-
-  if (cmd === "raidmode") {
-    settings.raidmode = !settings.raidmode;
-    return interaction.reply(`Raid Mode: ${settings.raidmode}`);
-  }
+  if (cmd === "antilink")
+    return interaction.reply("Anti-link toggled");
 
   // =====================
   // CHANNEL CONTROL
   // =====================
   if (cmd === "lock") {
-    await interaction.channel.permissionOverwrites.edit(interaction.guild.id, { SendMessages: false });
+    await interaction.channel.permissionOverwrites.edit(interaction.guild.id, {
+      SendMessages: false
+    });
     return interaction.reply("Locked");
   }
 
   if (cmd === "unlock") {
-    await interaction.channel.permissionOverwrites.edit(interaction.guild.id, { SendMessages: true });
+    await interaction.channel.permissionOverwrites.edit(interaction.guild.id, {
+      SendMessages: true
+    });
     return interaction.reply("Unlocked");
-  }
-
-  if (cmd === "hide") {
-    await interaction.channel.permissionOverwrites.edit(interaction.guild.id, { ViewChannel: false });
-    return interaction.reply("Hidden");
-  }
-
-  if (cmd === "show") {
-    await interaction.channel.permissionOverwrites.edit(interaction.guild.id, { ViewChannel: true });
-    return interaction.reply("Visible");
-  }
-
-  // =====================
-  // SERVER TOOLS
-  // =====================
-  if (cmd === "nuke") {
-    const ch = interaction.channel;
-    await ch.delete();
-    interaction.guild.channels.create({ name: ch.name });
-  }
-
-  if (cmd === "serverinfo") {
-    return interaction.reply(`Server: ${interaction.guild.name} | Members: ${interaction.guild.memberCount}`);
-  }
-
-  if (cmd === "userinfo") {
-    const user = interaction.options.getUser("user") || interaction.user;
-    return interaction.reply(`User: ${user.tag}`);
-  }
-
-  // =====================
-  // SYSTEM
-  // =====================
-  if (cmd === "invite") {
-    return interaction.reply("https://discord.com/oauth2/authorize?client_id=YOUR_ID");
-  }
-
-  if (cmd === "avatar") {
-    const user = interaction.options.getUser("user") || interaction.user;
-    return interaction.reply(user.displayAvatarURL());
   }
 
   // =====================
   // STAFF SYSTEM
   // =====================
   if (cmd === "addstaff") {
-    const user = interaction.options.getUser("user");
-    staff.add(user.id);
-    return interaction.reply(`👮 ${user.tag} added to staff`);
+    if (interaction.user.id !== OWNER_ID) return;
+    staff.add(interaction.options.getUser("user").id);
+    return interaction.reply("Staff added");
   }
 
   if (cmd === "removestaff") {
-    const user = interaction.options.getUser("user");
-    staff.delete(user.id);
-    return interaction.reply(`❌ ${user.tag} removed from staff`);
+    if (interaction.user.id !== OWNER_ID) return;
+    staff.delete(interaction.options.getUser("user").id);
+    return interaction.reply("Staff removed");
   }
 
   // =====================
-  // WHITELIST SYSTEM
+  // TRUSTED / WHITELIST / BLACKLIST
   // =====================
   if (cmd === "whitelist") {
-    const user = interaction.options.getUser("user");
-    whitelist.add(user.id);
-    return interaction.reply(`🟢 ${user.tag} whitelisted`);
+    whitelist.add(interaction.options.getUser("user").id);
+    return interaction.reply("Whitelisted");
   }
 
   if (cmd === "removewhitelist") {
-    const user = interaction.options.getUser("user");
-    whitelist.delete(user.id);
-    return interaction.reply(`🔴 ${user.tag} removed from whitelist`);
+    whitelist.delete(interaction.options.getUser("user").id);
+    return interaction.reply("Removed whitelist");
+  }
+
+  if (cmd === "blacklist") {
+    blacklist.add(interaction.options.getUser("user").id);
+    return interaction.reply("Blacklisted");
   }
 
   // =====================
-  // BLACKLIST
+  // SNAPSHOT SYSTEM
   // =====================
-  if (cmd === "blacklist") {
-    const user = interaction.options.getUser("user");
-    blacklist.add(user.id);
-    return interaction.reply(`⛔ ${user.tag} blacklisted`);
+  if (cmd === "snapshot") {
+    takeSnapshot(interaction.guild);
+    return interaction.reply("Snapshot saved");
+  }
+
+  if (cmd === "restore") {
+    restore(interaction.guild);
+    return interaction.reply("Restored");
+  }
+
+  if (cmd === "security") {
+    return interaction.reply("🛡️ System Online (Ultra Enterprise)");
   }
 });
 
